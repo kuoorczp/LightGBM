@@ -1198,7 +1198,6 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
                         bool is_colwise, TrainingTempState* temp_state) const {
   Common::FunctionTimer fun_time("Dataset::InitTrain",
                                  global_timer);
-  return;
   if (temp_state->multi_val_bin == nullptr) {
     return;
   }
