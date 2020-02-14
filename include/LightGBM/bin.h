@@ -458,6 +458,11 @@ class MultiValBin {
 
   virtual void CopySubset(const Bin* full_bin, const data_size_t* used_indices, data_size_t num_used_indices) = 0;
 
+  virtual MultiValBin* SubFeature(int num_bin, int num_feature,
+                                  const std::vector<int>& used_feature_index,
+                                  const std::vector<uint32_t>& offsets,
+                                  const std::vector<uint32_t>& delta) const = 0;
+
   virtual void ConstructHistogram(
     const data_size_t* data_indices, data_size_t start, data_size_t end,
     const score_t* gradients, const score_t* hessians,
@@ -477,7 +482,13 @@ class MultiValBin {
 
   virtual bool IsSparse() = 0;
 
-  static MultiValBin* CreateMultiValBin(data_size_t num_data, int num_bin, int num_feature, double sparse_rate);
+  static MultiValBin* CreateMultiValBin(data_size_t num_data, int num_bin,
+                                        int num_feature, double sparse_rate);
+
+  static MultiValBin* CreateMultiValDenseBin(data_size_t num_data, int num_bin,
+                                             int num_feature);
+
+  static MultiValBin* CreateMultiValSparseBin(data_size_t num_data, int num_bin);
 
   virtual MultiValBin* Clone() = 0;
 };

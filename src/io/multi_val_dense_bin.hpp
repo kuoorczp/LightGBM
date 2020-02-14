@@ -5,6 +5,7 @@
 #ifndef LIGHTGBM_IO_MULTI_VAL_DENSE_BIN_HPP_
 #define LIGHTGBM_IO_MULTI_VAL_DENSE_BIN_HPP_
 
+#include <LightGBM/utils/openmp_wrapper.h>
 #include <LightGBM/bin.h>
 
 #include <cstdint>
@@ -134,6 +135,43 @@ class MultiValDenseBin : public MultiValBin {
         data_.push_back(other_bin->data_[j]);
       }
     }
+  }
+
+  MultiValBin* SubFeature(int num_bin, int num_feature,
+                          const std::vector<int>& used_feature_index,
+                          const std::vector<uint32_t>&,
+                          const std::vector<uint32_t>& delta) const override {
+    MultiValBin* bin = CreateMultiValDenseBin(num_data_, num_bin, num_feature);
+
+    int num_threads = 1;
+#pragma omp parallel
+#pragma omp master
+    { num_threads = omp_get_num_threads(); }
+
+    const int min_block_size = 1024;
+    const int n_block = std::min(num_threads, num_data_ / min_block_size);
+    const data_size_t block_size = (num_data_ + n_block - 1) / n_block;
+#pragma omp parallel for schedule(static)
+    for (int tid = 0; tid < n_block; ++tid) {
+      data_size_t start = tid * block_size;
+      data_size_t end = std::min(num_data_, start + block_size);
+      std::vector<uint32_t> tmp;
+      tmp.reserve(num_feature);
+      for (data_size_t i = start; i < end; ++i) {
+        tmp.clear();
+        const auto j_start = RowPtr(i);
+        for (auto j : used_feature_index) {
+          if (data_[j_start + j] == 0) {
+            tmp.push_back(0);
+          } else {
+            tmp.push_back(data_[j_start + j] - delta[j]);
+          }
+        }
+        bin->PushOneRow(tid, i, tmp);
+      }
+    }
+    bin->FinishLoad();
+    return bin;
   }
 
   inline int64_t RowPtr(data_size_t idx) const {
