@@ -317,9 +317,6 @@ struct TrainingTempState {
     }
 #pragma omp parallel for schedule(static, 1)
     for (int i = 0; i < static_cast<int>(hist_move_src.size()); ++i) {
-      if (hist_move_src[i] == hist_move_dest[i]) {
-        continue;
-      }
       std::copy_n(src + hist_move_src[i], hist_move_size[i],
                   dest + hist_move_dest[i]);
     }
