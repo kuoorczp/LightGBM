@@ -224,7 +224,8 @@ class MultiValSparseBin : public MultiValBin {
         for (auto j = j_start; j < j_end; ++j) {
           auto val = other->data_[j];
           int right = static_cast<int>(upper.size() - 1);
-          while (k < right) {
+          while (val >= upper[k]) {
+            ++k;
             int mid = (k + right) / 2;
             if (val < upper[mid]) {
               right = mid;
