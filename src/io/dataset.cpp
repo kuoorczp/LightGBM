@@ -1201,6 +1201,7 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
   if (temp_state->multi_val_bin == nullptr) {
     return;
   }
+  global_timer.Start("Dataset::InitTrain.Prep");
   bool is_sparse_bin = temp_state->multi_val_bin->IsSparse(); 
   int num_used = 0;
   int total = 0;
@@ -1226,10 +1227,12 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
       ++total;
     }
   }
+  global_timer.Stop("Dataset::InitTrain.Prep");
   const double k_subfeature_threshold = 0.6;
   if (num_used >= k_subfeature_threshold * total) {
     return;
   }
+  global_timer.Start("Dataset::InitTrain.Prep");
   std::vector<uint32_t> offsets;
   std::vector<uint32_t> delta;
   temp_state->hist_move_src.clear();
@@ -1286,11 +1289,13 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
       }
     }
   }
-  
+  global_timer.Stop("Dataset::InitTrain.Prep");
+  global_timer.Start("Dataset::InitTrain.Subfeature");
   temp_state->multi_val_bin_subfeature.reset(
       temp_state->multi_val_bin->SubFeature(new_num_total_bin, num_used,
                                             used_feature_index, offsets,
                                             delta));
+  global_timer.Stop("Dataset::InitTrain.Subfeature");
 }
 
 void Dataset::ConstructHistogramsMultiVal(
