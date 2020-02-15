@@ -141,7 +141,8 @@ class MultiValDenseBin : public MultiValBin {
                           const std::vector<int>& used_feature_index,
                           const std::vector<uint32_t>&,
                           const std::vector<uint32_t>& delta) const override {
-    MultiValBin* bin = CreateMultiValDenseBin(num_data_, num_bin, num_feature);
+    MultiValDenseBin<VAL_T>* bin =
+        new MultiValDenseBin<VAL_T>(num_data_, num_bin, num_feature);
 
     int num_threads = 1;
 #pragma omp parallel
@@ -155,22 +156,18 @@ class MultiValDenseBin : public MultiValBin {
     for (int tid = 0; tid < n_block; ++tid) {
       data_size_t start = tid * block_size;
       data_size_t end = std::min(num_data_, start + block_size);
-      std::vector<uint32_t> tmp;
-      tmp.reserve(num_feature);
       for (data_size_t i = start; i < end; ++i) {
-        tmp.clear();
         const auto j_start = RowPtr(i);
-        for (auto j : used_feature_index) {
-          if (data_[j_start + j] == 0) {
-            tmp.push_back(0);
-          } else {
-            tmp.push_back(data_[j_start + j] - delta[j]);
+        const auto other_j_start = bin->RowPtr(i);
+        for (int j = 0; j < num_feature; ++j) {
+          if (data_[j_start + used_feature_index[j]] > 0) {
+            bin->data_[other_j_start + j] =
+                static_cast<VAL_T>(data_[j_start + used_feature_index[j]] -
+                                   delta[used_feature_index[j]]);
           }
         }
-        bin->PushOneRow(tid, i, tmp);
       }
     }
-    bin->FinishLoad();
     return bin;
   }
 
