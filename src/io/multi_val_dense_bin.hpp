@@ -152,7 +152,7 @@ class MultiValDenseBin : public MultiValBin {
     const int min_block_size = 1024;
     const int n_block = std::min(num_threads, num_data_ / min_block_size);
     const data_size_t block_size = (num_data_ + n_block - 1) / n_block;
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static, 1)
     for (int tid = 0; tid < n_block; ++tid) {
       data_size_t start = tid * block_size;
       data_size_t end = std::min(num_data_, start + block_size);
