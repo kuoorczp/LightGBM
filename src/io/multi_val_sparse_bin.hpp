@@ -215,6 +215,7 @@ class MultiValSparseBin : public MultiValBin {
       data_size_t start = tid * block_size;
       data_size_t end = std::min(num_data_, start + block_size);
       auto& buf = (tid == 0) ? data_ : t_data_[tid - 1];
+      buf.reserve(other->RowPtr(end) - other->RowPtr(start));
       for (data_size_t i = start; i < end; ++i) {
         const auto j_start = other->RowPtr(i);
         const auto j_end = other->RowPtr(i + 1);
