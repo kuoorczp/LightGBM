@@ -91,6 +91,7 @@ void SerialTreeLearner::GetMultiValBin(const Dataset* dataset, bool is_first_tim
   }
 }
 
+// Todo: optimized bagging for multi-val bin
 void SerialTreeLearner::ResetTrainingData(const Dataset* train_data) {
   train_data_ = train_data;
   num_data_ = train_data_->num_data();

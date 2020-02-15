@@ -1291,10 +1291,15 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
   }
   global_timer.Stop("Dataset::InitTrain.Prep");
   global_timer.Start("Dataset::InitTrain.Subfeature");
-  temp_state->multi_val_bin_subfeature.reset(
-      temp_state->multi_val_bin->SubFeature(new_num_total_bin, num_used,
-                                            used_feature_index, offsets,
-                                            delta));
+  if (temp_state->multi_val_bin_subfeature == nullptr) {
+    temp_state->multi_val_bin_subfeature.reset(
+        temp_state->multi_val_bin->CreateLike(new_num_total_bin, num_used));
+  } else {
+    temp_state->multi_val_bin_subfeature->ReSizeForSubFeature(new_num_total_bin,
+                                                              num_used);
+  }
+  temp_state->multi_val_bin_subfeature->CopySubFeature(
+      temp_state->multi_val_bin.get(), used_feature_index, offsets, delta);
   global_timer.Stop("Dataset::InitTrain.Subfeature");
 }
 

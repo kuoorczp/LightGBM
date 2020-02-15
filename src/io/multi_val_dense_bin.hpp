@@ -137,15 +137,24 @@ class MultiValDenseBin : public MultiValBin {
     }
   }
 
-  MultiValBin* SubFeature(int num_bin, int num_feature,
-                          const std::vector<int>& used_feature_index,
-                          const std::vector<uint32_t>&,
-                          const std::vector<uint32_t>& delta) const override {
-    global_timer.Start("MultiValDenseBin::SubFeature.Construct");
-    MultiValDenseBin<VAL_T>* bin =
-        new MultiValDenseBin<VAL_T>(num_data_, num_bin, num_feature);
-    global_timer.Stop("MultiValDenseBin::SubFeature.Construct");
+  MultiValBin* CreateLike(int num_bin, int num_feature) const override {
+    return new MultiValDenseBin<VAL_T>(num_data_, num_bin, num_feature);
+  }
 
+  void ReSizeForSubFeature(int num_bin, int num_feature) override {
+    num_bin_ = num_bin;
+    num_feature_ = num_feature;
+    size_t new_size = static_cast<size_t>(num_feature_) * num_data_;
+    if (data_.size() < static_cast<size_t>(num_feature_) * num_data_) {
+      data_.resize(new_size, 0);
+    }
+  }
+
+  void CopySubFeature(const MultiValBin* full_bin,
+                      const std::vector<int>& used_feature_index,
+                      const std::vector<uint32_t>& offsets,
+                      const std::vector<uint32_t>& delta) override {
+    const auto other = reinterpret_cast<const MultiValDenseBin<VAL_T>*>(full_bin);
     int num_threads = 1;
 #pragma omp parallel
 #pragma omp master
@@ -160,17 +169,18 @@ class MultiValDenseBin : public MultiValBin {
       data_size_t end = std::min(num_data_, start + block_size);
       for (data_size_t i = start; i < end; ++i) {
         const auto j_start = RowPtr(i);
-        const auto other_j_start = bin->RowPtr(i);
-        for (int j = 0; j < num_feature; ++j) {
-          if (data_[j_start + used_feature_index[j]] > 0) {
-            bin->data_[other_j_start + j] =
-                static_cast<VAL_T>(data_[j_start + used_feature_index[j]] -
-                                   delta[used_feature_index[j]]);
+        const auto other_j_start = other->RowPtr(i);
+        for (int j = 0; j < num_feature_; ++j) {
+          if (other->data_[other_j_start + used_feature_index[j]] > 0) {
+            data_[j_start + j] = static_cast<VAL_T>(
+                other->data_[other_j_start + used_feature_index[j]] -
+                delta[used_feature_index[j]]);
+          } else {
+            data_[j_start + j] = 0;
           }
         }
       }
     }
-    return bin;
   }
 
   inline int64_t RowPtr(data_size_t idx) const {
