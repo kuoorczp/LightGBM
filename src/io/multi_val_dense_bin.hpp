@@ -141,8 +141,10 @@ class MultiValDenseBin : public MultiValBin {
                           const std::vector<int>& used_feature_index,
                           const std::vector<uint32_t>&,
                           const std::vector<uint32_t>& delta) const override {
+    global_timer.Start("MultiValDenseBin::SubFeature.Construct");
     MultiValDenseBin<VAL_T>* bin =
         new MultiValDenseBin<VAL_T>(num_data_, num_bin, num_feature);
+    global_timer.Stop("MultiValDenseBin::SubFeature.Construct");
 
     int num_threads = 1;
 #pragma omp parallel
