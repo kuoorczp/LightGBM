@@ -454,13 +454,13 @@ class MultiValBin {
 
   virtual void ReSize(data_size_t num_data) = 0;
 
-  virtual void PushOneRow(int tid, data_size_t idx, const std::vector<uint32_t>& values) = 0;
+  virtual void PushOneRow(int tid, data_size_t idx, const std::vector<uint32_t>& values, int size) = 0;
 
   virtual void CopySubset(const Bin* full_bin, const data_size_t* used_indices, data_size_t num_used_indices) = 0;
 
   virtual void ReSizeForSubFeature(int num_bin, int num_feature) = 0;
 
-  virtual MultiValBin* CreateLike(int num_bin, int num_feature) const = 0;
+  virtual MultiValBin* CreateLike(int num_bin, int num_feature, double fraction) const = 0;
 
   virtual void CopySubFeature(const MultiValBin* full_bin,
                               const std::vector<int>& used_feature_index,
@@ -493,7 +493,7 @@ class MultiValBin {
   static MultiValBin* CreateMultiValDenseBin(data_size_t num_data, int num_bin,
                                              int num_feature);
 
-  static MultiValBin* CreateMultiValSparseBin(data_size_t num_data, int num_bin);
+  static MultiValBin* CreateMultiValSparseBin(data_size_t num_data, int num_bin, double estimate_element_per_row);
 
   virtual MultiValBin* Clone() = 0;
 };

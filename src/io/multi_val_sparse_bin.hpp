@@ -18,17 +18,25 @@ namespace LightGBM {
 template <typename VAL_T>
 class MultiValSparseBin : public MultiValBin {
  public:
-  explicit MultiValSparseBin(data_size_t num_data, int num_bin)
-      : num_data_(num_data), num_bin_(num_bin) {
+  explicit MultiValSparseBin(data_size_t num_data, int num_bin,
+                             double estimate_element_per_row)
+      : num_data_(num_data),
+        num_bin_(num_bin),
+        estimate_element_per_row_(estimate_element_per_row) {
     row_ptr_.resize(num_data_ + 1, 0);
-    data_.reserve(num_data_);
+    data_size_t estimate_num_data =
+        static_cast<data_size_t>(num_data_ * estimate_element_per_row_ * 1.5);
     int num_threads = 1;
 #pragma omp parallel
 #pragma omp master
     { num_threads = omp_get_num_threads(); }
     if (num_threads > 1) {
       t_data_.resize(num_threads - 1);
+      for (size_t i = 0; i < t_data_.size(); ++i) {
+        t_data_[i].reserve(estimate_num_data / num_threads);
+      }
     }
+    data_.reserve(estimate_num_data / num_threads);
   }
 
   ~MultiValSparseBin() {}
@@ -37,16 +45,16 @@ class MultiValSparseBin : public MultiValBin {
 
   int num_bin() const override { return num_bin_; }
 
-  void PushOneRow(int tid, data_size_t idx,
-                  const std::vector<uint32_t>& values) override {
-    row_ptr_[idx + 1] = static_cast<data_size_t>(values.size());
+  void PushOneRow(int tid, data_size_t idx, const std::vector<uint32_t>& values,
+                  int size) override {
+    row_ptr_[idx + 1] = size;
     if (tid == 0) {
-      for (auto val : values) {
-        data_.push_back(static_cast<VAL_T>(val));
+      for (int i = 0; i < size; ++i) {
+        data_.push_back(static_cast<VAL_T>(values[i]));
       }
     } else {
-      for (auto val : values) {
-        t_data_[tid - 1].push_back(static_cast<VAL_T>(val));
+      for (int i = 0; i < size; ++i) {
+        t_data_[tid - 1].push_back(static_cast<VAL_T>(values[i]));
       }
     }
   }
@@ -91,6 +99,9 @@ class MultiValSparseBin : public MultiValBin {
     data_.shrink_to_fit();
     t_data_.clear();
     t_data_.shrink_to_fit();
+    // update estimate_element_per_row_ by all data
+    estimate_element_per_row_ =
+        static_cast<double>(row_ptr_[num_data_]) / num_data_;
   }
 
   bool IsSparse() override { return true; }
@@ -186,7 +197,10 @@ class MultiValSparseBin : public MultiValBin {
                   data_size_t num_used_indices) override {
     auto other_bin = dynamic_cast<const MultiValSparseBin<VAL_T>*>(full_bin);
     row_ptr_.resize(num_data_ + 1, 0);
+    data_size_t estimate_num_data =
+        static_cast<data_size_t>(num_data_ * estimate_element_per_row_ * 1.5);
     data_.clear();
+    data_.reserve(estimate_num_data);
     for (data_size_t i = 0; i < num_used_indices; ++i) {
       for (data_size_t j = other_bin->row_ptr_[used_indices[i]];
            j < other_bin->row_ptr_[used_indices[i] + 1]; ++j) {
@@ -197,20 +211,20 @@ class MultiValSparseBin : public MultiValBin {
     }
   }
 
-  MultiValBin* CreateLike(int num_bin, int num_features) const override {
-    auto ret = new MultiValSparseBin<VAL_T>(num_data_, num_bin);
+  MultiValBin* CreateLike(int num_bin, int num_features, double fraction) const override {
+    auto ret = new MultiValSparseBin<VAL_T>(
+        num_data_, num_bin, estimate_element_per_row_ * fraction);
     ret->ReSizeForSubFeature(num_bin, num_features);
     return ret;
   }
 
-  void ReSizeForSubFeature(int num_bin, int num_features) override {
+  void ReSizeForSubFeature(int num_bin, int) override {
     num_bin_ = num_bin;
     if (data_.empty()) {
       int parts = t_data_.size() + 1;
-      int size = num_data_ * num_features / parts;
-      data_.resize(size, 0);
+      data_.resize(data_.capacity(), 0);
       for (size_t i = 0; i < t_data_.size(); ++i) {
-        t_data_[i].resize(size, 0);
+        t_data_[i].resize(t_data_[i].capacity(), 0);
       }
     } 
   }
@@ -265,6 +279,7 @@ class MultiValSparseBin : public MultiValBin {
  private:
   data_size_t num_data_;
   int num_bin_;
+  double estimate_element_per_row_;
   std::vector<VAL_T, Common::AlignmentAllocator<VAL_T, 32>> data_;
   std::vector<data_size_t, Common::AlignmentAllocator<data_size_t, 32>>
       row_ptr_;
@@ -274,6 +289,7 @@ class MultiValSparseBin : public MultiValBin {
   MultiValSparseBin<VAL_T>(const MultiValSparseBin<VAL_T>& other)
       : num_data_(other.num_data_),
         num_bin_(other.num_bin_),
+        estimate_element_per_row_(other.estimate_element_per_row_),
         data_(other.data_),
         row_ptr_(other.row_ptr_) {}
 };

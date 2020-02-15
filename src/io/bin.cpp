@@ -666,7 +666,9 @@ namespace LightGBM {
   MultiValBin* MultiValBin::CreateMultiValBin(data_size_t num_data, int num_bin, int num_feature, double sparse_rate) {
     const double multi_val_bin_sparse_threshold = 0.25f;
     if (sparse_rate >= multi_val_bin_sparse_threshold) {
-      return CreateMultiValSparseBin(num_data, num_bin);
+      const double average_element_per_row = sparse_rate * num_feature;
+      return CreateMultiValSparseBin(num_data, num_bin,
+                                     average_element_per_row);
     } else {
       return CreateMultiValDenseBin(num_data, num_bin, num_feature);
     }
@@ -685,13 +687,17 @@ namespace LightGBM {
   }
 
   MultiValBin* MultiValBin::CreateMultiValSparseBin(data_size_t num_data,
-                                                   int num_bin) {
+                                                    int num_bin,
+                                                    double estimate_element_per_row) {
     if (num_bin <= 256) {
-      return new MultiValSparseBin<uint8_t>(num_data, num_bin);
+      return new MultiValSparseBin<uint8_t>(num_data, num_bin,
+                                            estimate_element_per_row);
     } else if (num_bin <= 65536) {
-      return new MultiValSparseBin<uint16_t>(num_data, num_bin);
+      return new MultiValSparseBin<uint16_t>(num_data, num_bin,
+                                             estimate_element_per_row);
     } else {
-      return new MultiValSparseBin<uint32_t>(num_data, num_bin);
+      return new MultiValSparseBin<uint32_t>(num_data, num_bin,
+                                             estimate_element_per_row);
     }
   }
 

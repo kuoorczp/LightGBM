@@ -542,15 +542,14 @@ void PushDataToMultiValBin(
   if (ret->IsSparse()) {
 #pragma omp parallel for schedule(static)
     for (int tid = 0; tid < n_block; ++tid) {
-      std::vector<uint32_t> cur_data;
-      cur_data.reserve(most_freq_bins.size());
+      std::vector<uint32_t> cur_data(most_freq_bins.size(), 0);
       data_size_t start = tid * block_size;
       data_size_t end = std::min(num_data, start + block_size);
       for (size_t j = 0; j < most_freq_bins.size(); ++j) {
         iters[tid][j]->Reset(start);
       }
       for (data_size_t i = start; i < end; ++i) {
-        cur_data.clear();
+        int size = 0;
         for (size_t j = 0; j < most_freq_bins.size(); ++j) {
           auto cur_bin = iters[tid][j]->Get(i);
           if (cur_bin == most_freq_bins[j]) {
@@ -560,14 +559,15 @@ void PushDataToMultiValBin(
           if (most_freq_bins[j] == 0) {
             cur_bin -= 1;
           }
-          cur_data.push_back(cur_bin);
+          cur_data[size++] = cur_bin;
         }
-        ret->PushOneRow(tid, i, cur_data);
+        ret->PushOneRow(tid, i, cur_data, size);
       }
     }
   } else {
 #pragma omp parallel for schedule(static)
     for (int tid = 0; tid < n_block; ++tid) {
+      int n_feature = static_cast<int>(most_freq_bins.size());
       std::vector<uint32_t> cur_data(most_freq_bins.size(), 0);
       data_size_t start = tid * block_size;
       data_size_t end = std::min(num_data, start + block_size);
@@ -587,7 +587,7 @@ void PushDataToMultiValBin(
           }
           cur_data[j] = cur_bin;
         }
-        ret->PushOneRow(tid, i, cur_data);
+        ret->PushOneRow(tid, i, cur_data, n_feature);
       }
     }
   }
@@ -1294,7 +1294,9 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
   global_timer.Start("Dataset::InitTrain.Resize");
   if (temp_state->multi_val_bin_subfeature == nullptr) {
     temp_state->multi_val_bin_subfeature.reset(
-        temp_state->multi_val_bin->CreateLike(new_num_total_bin, num_used));
+        temp_state->multi_val_bin->CreateLike(
+            new_num_total_bin, num_used,
+            static_cast<double>(num_used) / total));
   } else {
     temp_state->multi_val_bin_subfeature->ReSizeForSubFeature(new_num_total_bin,
                                                               num_used);

@@ -33,10 +33,10 @@ class MultiValDenseBin : public MultiValBin {
     return num_bin_;
   }
 
-  void PushOneRow(int , data_size_t idx, const std::vector<uint32_t>& values) override {
+  void PushOneRow(int , data_size_t idx, const std::vector<uint32_t>& values, int size) override {
     auto start = RowPtr(idx);
 #ifdef DEBUG
-    CHECK(num_feature_ == static_cast<int>(values.size()));
+    CHECK(num_feature_ == size);
 #endif  // DEBUG
     for (auto i = 0; i < num_feature_; ++i) {
       data_[start + i] = static_cast<VAL_T>(values[i]);
@@ -129,15 +129,18 @@ class MultiValDenseBin : public MultiValBin {
 
   void CopySubset(const Bin* full_bin, const data_size_t* used_indices, data_size_t num_used_indices) override {
     auto other_bin = dynamic_cast<const MultiValDenseBin<VAL_T>*>(full_bin);
-    data_.clear();
+    data_.resize(num_feature_ * num_used_indices);
     for (data_size_t i = 0; i < num_used_indices; ++i) {
-      for (int64_t j = other_bin->RowPtr(used_indices[i]); j < other_bin->RowPtr(used_indices[i] + 1); ++j) {
-        data_.push_back(other_bin->data_[j]);
+      data_size_t j_start = RowPtr(i);
+      data_size_t other_j_start = other_bin->RowPtr(used_indices[i]);
+      for (int64_t j = other_j_start;
+           j < other_bin->RowPtr(used_indices[i] + 1); ++j) {
+        data_[j - other_j_start + j_start] = other_bin->data_[j];
       }
     }
   }
 
-  MultiValBin* CreateLike(int num_bin, int num_feature) const override {
+  MultiValBin* CreateLike(int num_bin, int num_feature, double) const override {
     return new MultiValDenseBin<VAL_T>(num_data_, num_bin, num_feature);
   }
 
