@@ -1233,7 +1233,8 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
     return;
   }
   global_timer.Start("Dataset::InitTrain.Prep");
-  std::vector<uint32_t> offsets;
+  std::vector<uint32_t> upper_bound;
+  std::vector<uint32_t> lower_bound;
   std::vector<uint32_t> delta;
   temp_state->hist_move_src.clear();
   temp_state->hist_move_dest.clear();
@@ -1241,7 +1242,6 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
 
   int num_total_bin = 1;
   int new_num_total_bin = 1;
-  offsets.push_back(num_total_bin);
 
   for (int i = 0; i < num_groups_; ++i) {
     int f_start = group_feature_start_[i];
@@ -1253,8 +1253,9 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
           cur_num_bin -= 1;
         }
         num_total_bin += cur_num_bin;
-        offsets.push_back(num_total_bin);
         if (is_feature_used[f_start + j]) {
+          lower_bound.push_back(num_total_bin - cur_num_bin);
+          upper_bound.push_back(num_total_bin);
           new_num_total_bin += cur_num_bin;
           temp_state->hist_move_src.push_back(
               (new_num_total_bin - cur_num_bin) * 2);
@@ -1262,9 +1263,7 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
                                                2);
           temp_state->hist_move_size.push_back(cur_num_bin * 2);
           delta.push_back(num_total_bin - new_num_total_bin);
-        } else {
-          delta.push_back(std::numeric_limits<uint32_t>::max());
-        }
+        } 
       }
     } else if (!is_colwise) {
       bool is_group_used = false;
@@ -1276,19 +1275,21 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
       }
       int cur_num_bin = feature_groups_[i]->bin_offsets_.back() - 1;
       num_total_bin += cur_num_bin;
-      offsets.push_back(num_total_bin);
       if (is_group_used) {
+        lower_bound.push_back(num_total_bin - cur_num_bin);
+        upper_bound.push_back(num_total_bin);
         new_num_total_bin += cur_num_bin;
         temp_state->hist_move_src.push_back((new_num_total_bin - cur_num_bin) *
                                             2);
         temp_state->hist_move_dest.push_back((num_total_bin - cur_num_bin) * 2);
         temp_state->hist_move_size.push_back(cur_num_bin * 2);
         delta.push_back(num_total_bin - new_num_total_bin);
-      } else {
-        delta.push_back(std::numeric_limits<uint32_t>::max());
       }
     }
   }
+  // avoid out of range
+  lower_bound.push_back(0);
+  upper_bound.push_back(num_total_bin);
   global_timer.Stop("Dataset::InitTrain.Prep");
   global_timer.Start("Dataset::InitTrain.Subfeature");
   if (temp_state->multi_val_bin_subfeature == nullptr) {
@@ -1299,7 +1300,7 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
                                                               num_used);
   }
   temp_state->multi_val_bin_subfeature->CopySubFeature(
-      temp_state->multi_val_bin.get(), used_feature_index, offsets, delta);
+      temp_state->multi_val_bin.get(), used_feature_index, lower_bound, upper_bound, delta);
   global_timer.Stop("Dataset::InitTrain.Subfeature");
 }
 

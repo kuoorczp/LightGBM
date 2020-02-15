@@ -464,7 +464,8 @@ class MultiValBin {
 
   virtual void CopySubFeature(const MultiValBin* full_bin,
                               const std::vector<int>& used_feature_index,
-                              const std::vector<uint32_t>& offsets,
+                              const std::vector<uint32_t>& lower,
+                              const std::vector<uint32_t>& upper,
                               const std::vector<uint32_t>& delta) = 0;
 
   virtual void ConstructHistogram(

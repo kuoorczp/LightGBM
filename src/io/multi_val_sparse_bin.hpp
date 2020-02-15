@@ -1,6 +1,7 @@
 /*!
  * Copyright (c) 2020 Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See LICENSE file in the project root for license information.
+ * Licensed under the MIT License. See LICENSE file in the project root for
+ * license information.
  */
 #ifndef LIGHTGBM_IO_MULTI_VAL_SPARSE_BIN_HPP_
 #define LIGHTGBM_IO_MULTI_VAL_SPARSE_BIN_HPP_
@@ -14,37 +15,30 @@
 
 namespace LightGBM {
 
-
 template <typename VAL_T>
 class MultiValSparseBin : public MultiValBin {
  public:
   explicit MultiValSparseBin(data_size_t num_data, int num_bin)
-    : num_data_(num_data), num_bin_(num_bin) {
+      : num_data_(num_data), num_bin_(num_bin) {
     row_ptr_.resize(num_data_ + 1, 0);
     data_.reserve(num_data_);
     int num_threads = 1;
-    #pragma omp parallel
-    #pragma omp master
-    {
-      num_threads = omp_get_num_threads();
-    }
+#pragma omp parallel
+#pragma omp master
+    { num_threads = omp_get_num_threads(); }
     if (num_threads > 1) {
       t_data_.resize(num_threads - 1);
     }
   }
 
-  ~MultiValSparseBin() {
-  }
+  ~MultiValSparseBin() {}
 
-  data_size_t num_data() const override {
-    return num_data_;
-  }
+  data_size_t num_data() const override { return num_data_; }
 
-  int num_bin() const override {
-    return num_bin_;
-  }
+  int num_bin() const override { return num_bin_; }
 
-  void PushOneRow(int tid, data_size_t idx, const std::vector<uint32_t> & values) override {
+  void PushOneRow(int tid, data_size_t idx,
+                  const std::vector<uint32_t>& values) override {
     row_ptr_[idx + 1] = static_cast<data_size_t>(values.size());
     if (tid == 0) {
       for (auto val : values) {
@@ -57,7 +51,7 @@ class MultiValSparseBin : public MultiValBin {
     }
   }
 
-  void FinishLoad() override {
+  void MoveData() {
     for (data_size_t i = 0; i < num_data_; ++i) {
       row_ptr_[i + 1] += row_ptr_[i];
     }
@@ -68,21 +62,24 @@ class MultiValSparseBin : public MultiValBin {
         offsets.push_back(offsets.back() + t_data_[tid].size());
       }
       data_.resize(row_ptr_[num_data_]);
-      #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
       for (int tid = 0; tid < static_cast<int>(t_data_.size()); ++tid) {
         std::copy_n(t_data_[tid].data(), t_data_[tid].size(),
                     data_.data() + offsets[tid]);
+        t_data_[tid].clear();
       }
     }
+  }
+
+  void FinishLoad() override {
+    MoveData();
     row_ptr_.shrink_to_fit();
     data_.shrink_to_fit();
     t_data_.clear();
     t_data_.shrink_to_fit();
   }
 
-  bool IsSparse() override {
-    return true;
-  }
+  bool IsSparse() override { return true; }
 
   void ReSize(data_size_t num_data) override {
     if (num_data_ != num_data) {
@@ -90,14 +87,16 @@ class MultiValSparseBin : public MultiValBin {
     }
   }
 
-  #define ACC_GH(hist, i, g, h) \
+#define ACC_GH(hist, i, g, h)               \
   const auto ti = static_cast<int>(i) << 1; \
-  hist[ti] += g; \
-  hist[ti + 1] += h; \
+  hist[ti] += g;                            \
+  hist[ti + 1] += h;
 
-  template<bool use_indices, bool use_prefetch, bool use_hessians>
-  void ConstructHistogramInner(const data_size_t* data_indices, data_size_t start, data_size_t end,
-    const score_t* gradients, const score_t* hessians, hist_t* out) const {
+  template <bool use_indices, bool use_prefetch, bool use_hessians>
+  void ConstructHistogramInner(const data_size_t* data_indices,
+                               data_size_t start, data_size_t end,
+                               const score_t* gradients,
+                               const score_t* hessians, hist_t* out) const {
     data_size_t i = start;
     if (use_prefetch) {
       const data_size_t pf_offset = 32 / sizeof(VAL_T);
@@ -105,7 +104,8 @@ class MultiValSparseBin : public MultiValBin {
 
       for (; i < pf_end; ++i) {
         const auto idx = use_indices ? data_indices[i] : i;
-        const auto pf_idx = use_indices ? data_indices[i + pf_offset] : i + pf_offset;
+        const auto pf_idx =
+            use_indices ? data_indices[i + pf_offset] : i + pf_offset;
         PREFETCH_T0(gradients + pf_idx);
         if (use_hessians) {
           PREFETCH_T0(hessians + pf_idx);
@@ -138,41 +138,48 @@ class MultiValSparseBin : public MultiValBin {
       }
     }
   }
-  #undef ACC_GH
+#undef ACC_GH
 
-  void ConstructHistogram(const data_size_t* data_indices, data_size_t start, data_size_t end,
-    const score_t* gradients, const score_t* hessians,
-    hist_t* out) const override {
-    ConstructHistogramInner<true, true, true>(data_indices, start, end, gradients, hessians, out);
+  void ConstructHistogram(const data_size_t* data_indices, data_size_t start,
+                          data_size_t end, const score_t* gradients,
+                          const score_t* hessians, hist_t* out) const override {
+    ConstructHistogramInner<true, true, true>(data_indices, start, end,
+                                              gradients, hessians, out);
   }
 
   void ConstructHistogram(data_size_t start, data_size_t end,
-    const score_t* gradients, const score_t* hessians,
-    hist_t* out) const override {
-    ConstructHistogramInner<false, false, true>(nullptr, start, end, gradients, hessians, out);
+                          const score_t* gradients, const score_t* hessians,
+                          hist_t* out) const override {
+    ConstructHistogramInner<false, false, true>(nullptr, start, end, gradients,
+                                                hessians, out);
   }
 
-  void ConstructHistogram(const data_size_t* data_indices, data_size_t start, data_size_t end,
-    const score_t* gradients,
-    hist_t* out) const override {
-    ConstructHistogramInner<true, true, false>(data_indices, start, end, gradients, nullptr, out);
+  void ConstructHistogram(const data_size_t* data_indices, data_size_t start,
+                          data_size_t end, const score_t* gradients,
+                          hist_t* out) const override {
+    ConstructHistogramInner<true, true, false>(data_indices, start, end,
+                                               gradients, nullptr, out);
   }
 
   void ConstructHistogram(data_size_t start, data_size_t end,
-    const score_t* gradients,
-    hist_t* out) const override {
-    ConstructHistogramInner<false, false, false>(nullptr, start, end, gradients, nullptr, out);
+                          const score_t* gradients,
+                          hist_t* out) const override {
+    ConstructHistogramInner<false, false, false>(nullptr, start, end, gradients,
+                                                 nullptr, out);
   }
 
-  void CopySubset(const Bin * full_bin, const data_size_t * used_indices, data_size_t num_used_indices) override {
+  void CopySubset(const Bin* full_bin, const data_size_t* used_indices,
+                  data_size_t num_used_indices) override {
     auto other_bin = dynamic_cast<const MultiValSparseBin<VAL_T>*>(full_bin);
     row_ptr_.resize(num_data_ + 1, 0);
     data_.clear();
     for (data_size_t i = 0; i < num_used_indices; ++i) {
-      for (data_size_t j = other_bin->row_ptr_[used_indices[i]]; j < other_bin->row_ptr_[used_indices[i] + 1]; ++j) {
+      for (data_size_t j = other_bin->row_ptr_[used_indices[i]];
+           j < other_bin->row_ptr_[used_indices[i] + 1]; ++j) {
         data_.push_back(other_bin->data_[j]);
       }
-      row_ptr_[i + 1] = row_ptr_[i] + other_bin->row_ptr_[used_indices[i] + 1] - other_bin->row_ptr_[used_indices[i]];
+      row_ptr_[i + 1] = row_ptr_[i] + other_bin->row_ptr_[used_indices[i] + 1] -
+                        other_bin->row_ptr_[used_indices[i]];
     }
   }
 
@@ -182,52 +189,53 @@ class MultiValSparseBin : public MultiValBin {
 
   void ReSizeForSubFeature(int num_bin, int) override {
     num_bin_ = num_bin;
+    data_.clear();
+    for (size_t i = 0; i < t_data_.size(); ++i) {
+      t_data_[i].clear();
+    }
   }
 
-  void CopySubFeature(const MultiValBin* full_bin,
-                      const std::vector<int>& used_feature_index,
-                      const std::vector<uint32_t>& offsets,
+  void CopySubFeature(const MultiValBin* full_bin, const std::vector<int>&,
+                      const std::vector<uint32_t>& lower,
+                      const std::vector<uint32_t>& upper,
                       const std::vector<uint32_t>& delta) override {
-    const auto other = reinterpret_cast<const MultiValSparseBin<VAL_T>*>(full_bin);
-    //    int num_threads = 1;
-//#pragma omp parallel
-//#pragma omp master
-//    { num_threads = omp_get_num_threads(); }
-//
-//    const int min_block_size = 1024;
-//    const int n_block = std::min(num_threads, num_data_ / min_block_size);
-//    const data_size_t block_size = (num_data_ + n_block - 1) / n_block;
-//#pragma omp parallel for schedule(static, 1)
-//    for (int tid = 0; tid < n_block; ++tid) {
-//      data_size_t start = tid * block_size;
-//      data_size_t end = std::min(num_data_, start + block_size);
-//      std::vector<uint32_t> tmp;
-//      tmp.reserve(num_feature);
-//      for (data_size_t i = start; i < end; ++i) {
-//        tmp.clear();
-//        const auto j_start = RowPtr(i);
-//        const auto j_end = RowPtr(i + 1);
-//        int k = 0;
-//        for (auto j = j_start; j < j_end; ++j) {
-//          auto val = data_[j];
-//          while (val < offsets[k]) {
-//            ++k;
-//          }
-//          if (delta[k - 1] >= val) {
-//            continue;
-//          }
-//          val -= delta[k - 1];
-//          tmp.push_back(val);
-//        }
-//        bin->PushOneRow(tid, i, tmp);
-//      }
-//    }
-//    bin->FinishLoad();
+    const auto other =
+        reinterpret_cast<const MultiValSparseBin<VAL_T>*>(full_bin);
+    int num_threads = 1;
+#pragma omp parallel
+#pragma omp master
+    { num_threads = omp_get_num_threads(); }
+
+    const int min_block_size = 1024;
+    const int n_block = std::min(num_threads, num_data_ / min_block_size);
+    const data_size_t block_size = (num_data_ + n_block - 1) / n_block;
+#pragma omp parallel for schedule(static, 1)
+    for (int tid = 0; tid < n_block; ++tid) {
+      data_size_t start = tid * block_size;
+      data_size_t end = std::min(num_data_, start + block_size);
+      auto& buf = (tid == 0) ? data_ : t_data_[tid - 1];
+      for (data_size_t i = start; i < end; ++i) {
+        const auto j_start = other->RowPtr(i);
+        const auto j_end = other->RowPtr(i + 1);
+        int k = 0;
+        int cur_cnt = 0;
+        for (auto j = j_start; j < j_end; ++j) {
+          auto val = other->data_[j];
+          while (val < lower[k]) {
+            ++k;
+          }
+          if (val < upper[k]) {
+            ++cur_cnt;
+            buf.push_back(val - delta[k]);
+          }
+        }
+        row_ptr_[i + 1] = cur_cnt;
+      }
+    }
+    MoveData();
   }
 
-  inline data_size_t RowPtr(data_size_t idx) const {
-    return row_ptr_[idx];
-  }
+  inline data_size_t RowPtr(data_size_t idx) const { return row_ptr_[idx]; }
 
   MultiValSparseBin<VAL_T>* Clone() override;
 
@@ -235,18 +243,22 @@ class MultiValSparseBin : public MultiValBin {
   data_size_t num_data_;
   int num_bin_;
   std::vector<VAL_T, Common::AlignmentAllocator<VAL_T, 32>> data_;
-  std::vector<data_size_t, Common::AlignmentAllocator<data_size_t, 32>> row_ptr_;
-  std::vector<std::vector<VAL_T>> t_data_;
+  std::vector<data_size_t, Common::AlignmentAllocator<data_size_t, 32>>
+      row_ptr_;
+  std::vector<std::vector<VAL_T, Common::AlignmentAllocator<VAL_T, 32>>>
+      t_data_;
 
-  MultiValSparseBin<VAL_T>(const MultiValSparseBin<VAL_T> & other)
-    : num_data_(other.num_data_), num_bin_(other.num_bin_), data_(other.data_), row_ptr_(other.row_ptr_) {
-  }
+  MultiValSparseBin<VAL_T>(const MultiValSparseBin<VAL_T>& other)
+      : num_data_(other.num_data_),
+        num_bin_(other.num_bin_),
+        data_(other.data_),
+        row_ptr_(other.row_ptr_) {}
 };
 
-template<typename VAL_T>
+template <typename VAL_T>
 MultiValSparseBin<VAL_T>* MultiValSparseBin<VAL_T>::Clone() {
   return new MultiValSparseBin<VAL_T>(*this);
 }
 
 }  // namespace LightGBM
-#endif   // LIGHTGBM_IO_MULTI_VAL_SPARSE_BIN_HPP_
+#endif  // LIGHTGBM_IO_MULTI_VAL_SPARSE_BIN_HPP_

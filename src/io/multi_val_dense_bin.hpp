@@ -152,7 +152,8 @@ class MultiValDenseBin : public MultiValBin {
 
   void CopySubFeature(const MultiValBin* full_bin,
                       const std::vector<int>& used_feature_index,
-                      const std::vector<uint32_t>& offsets,
+                      const std::vector<uint32_t>&,
+                      const std::vector<uint32_t>&,
                       const std::vector<uint32_t>& delta) override {
     const auto other = reinterpret_cast<const MultiValDenseBin<VAL_T>*>(full_bin);
     int num_threads = 1;
@@ -173,8 +174,7 @@ class MultiValDenseBin : public MultiValBin {
         for (int j = 0; j < num_feature_; ++j) {
           if (other->data_[other_j_start + used_feature_index[j]] > 0) {
             data_[j_start + j] = static_cast<VAL_T>(
-                other->data_[other_j_start + used_feature_index[j]] -
-                delta[used_feature_index[j]]);
+                other->data_[other_j_start + used_feature_index[j]] - delta[j]);
           } else {
             data_[j_start + j] = 0;
           }
