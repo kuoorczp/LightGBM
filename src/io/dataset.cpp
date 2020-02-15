@@ -1288,7 +1288,7 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
     }
   }
   // avoid out of range
-  lower_bound.push_back(0);
+  lower_bound.push_back(num_total_bin);
   upper_bound.push_back(num_total_bin);
   global_timer.Stop("Dataset::InitTrain.Prep");
   global_timer.Start("Dataset::InitTrain.Subfeature");

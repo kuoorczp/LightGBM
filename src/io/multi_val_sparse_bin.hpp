@@ -221,10 +221,10 @@ class MultiValSparseBin : public MultiValBin {
         int cur_cnt = 0;
         for (auto j = j_start; j < j_end; ++j) {
           auto val = other->data_[j];
-          while (val < lower[k]) {
+          while (val >= upper[k]) {
             ++k;
           }
-          if (val < upper[k]) {
+          if (val >= lower[k]) {
             ++cur_cnt;
             buf.push_back(val - delta[k]);
           }
