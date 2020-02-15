@@ -1291,7 +1291,7 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
   lower_bound.push_back(num_total_bin);
   upper_bound.push_back(num_total_bin);
   global_timer.Stop("Dataset::InitTrain.Prep");
-  global_timer.Start("Dataset::InitTrain.Subfeature");
+  global_timer.Start("Dataset::InitTrain.Resize");
   if (temp_state->multi_val_bin_subfeature == nullptr) {
     temp_state->multi_val_bin_subfeature.reset(
         temp_state->multi_val_bin->CreateLike(new_num_total_bin, num_used));
@@ -1299,9 +1299,11 @@ void Dataset::InitTrain(const std::vector<int8_t>& is_feature_used,
     temp_state->multi_val_bin_subfeature->ReSizeForSubFeature(new_num_total_bin,
                                                               num_used);
   }
+  global_timer.Stop("Dataset::InitTrain.Resize");
+  global_timer.Start("Dataset::InitTrain.CopySubFeature");
   temp_state->multi_val_bin_subfeature->CopySubFeature(
       temp_state->multi_val_bin.get(), used_feature_index, lower_bound, upper_bound, delta);
-  global_timer.Stop("Dataset::InitTrain.Subfeature");
+  global_timer.Stop("Dataset::InitTrain.CopySubFeature");
 }
 
 void Dataset::ConstructHistogramsMultiVal(
