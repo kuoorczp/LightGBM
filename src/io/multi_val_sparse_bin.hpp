@@ -184,16 +184,22 @@ class MultiValSparseBin : public MultiValBin {
     }
   }
 
-  MultiValBin* CreateLike(int num_bin, int) const override {
-    return new MultiValSparseBin<VAL_T>(num_data_, num_bin);
+  MultiValBin* CreateLike(int num_bin, int num_features) const override {
+    auto ret = new MultiValSparseBin<VAL_T>(num_data_, num_bin);
+    ret->ReSizeForSubFeature(num_bin, num_features);
+    return ret;
   }
 
-  void ReSizeForSubFeature(int num_bin, int) override {
+  void ReSizeForSubFeature(int num_bin, int num_features) override {
     num_bin_ = num_bin;
-    data_.clear();
-    for (size_t i = 0; i < t_data_.size(); ++i) {
-      t_data_[i].clear();
-    }
+    if (data_.empty()) {
+      int parts = t_data_.size() + 1;
+      int size = num_data_ * num_features / parts;
+      data_.resize(size, 0);
+      for (size_t i = 0; i < t_data_.size(); ++i) {
+        t_data_[i].resize(size, 0);
+      }
+    } 
   }
 
   void CopySubFeature(const MultiValBin* full_bin, const std::vector<int>&,
@@ -215,7 +221,7 @@ class MultiValSparseBin : public MultiValBin {
       data_size_t start = tid * block_size;
       data_size_t end = std::min(num_data_, start + block_size);
       auto& buf = (tid == 0) ? data_ : t_data_[tid - 1];
-      buf.reserve(other->RowPtr(end) - other->RowPtr(start));
+      size_t bid = 0;
       for (data_size_t i = start; i < end; ++i) {
         const auto j_start = other->RowPtr(i);
         const auto j_end = other->RowPtr(i + 1);
@@ -223,23 +229,17 @@ class MultiValSparseBin : public MultiValBin {
         int cur_cnt = 0;
         for (auto j = j_start; j < j_end; ++j) {
           auto val = other->data_[j];
-          int right = static_cast<int>(upper.size() - 1);
           while (val >= upper[k]) {
             ++k;
-            int mid = (k + right) / 2;
-            if (val < upper[mid]) {
-              right = mid;
-            } else {
-              k = mid + 1;
-            }
           }
           if (val >= lower[k]) {
             ++cur_cnt;
-            buf.push_back(val - delta[k]);
+            buf[bid++] = (val - delta[k]);
           }
         }
         row_ptr_[i + 1] = cur_cnt;
       }
+      buf.resize(bid);
     }
     MoveData();
   }
