@@ -51,29 +51,42 @@ class MultiValSparseBin : public MultiValBin {
     }
   }
 
-  void MoveData() {
+  template<bool use_ext_size>
+  void MoveData(const size_t* sizes) {
     Common::FunctionTimer fun_time("MultiValSparseBin::MoveData", global_timer);
     for (data_size_t i = 0; i < num_data_; ++i) {
       row_ptr_[i + 1] += row_ptr_[i];
     }
     if (t_data_.size() > 0) {
       std::vector<size_t> offsets;
-      offsets.push_back(data_.size());
+      if (use_ext_size) {
+        offsets.push_back(sizes[0]);
+      } else {
+        offsets.push_back(data_.size());
+      }
       for (size_t tid = 0; tid < t_data_.size() - 1; ++tid) {
-        offsets.push_back(offsets.back() + t_data_[tid].size());
+        if (use_ext_size) {
+          offsets.push_back(offsets.back() + sizes[tid + 1]);
+        } else {
+          offsets.push_back(offsets.back() + t_data_[tid].size());
+        }
       }
       data_.resize(row_ptr_[num_data_]);
 #pragma omp parallel for schedule(static)
       for (int tid = 0; tid < static_cast<int>(t_data_.size()); ++tid) {
-        std::copy_n(t_data_[tid].data(), t_data_[tid].size(),
-                    data_.data() + offsets[tid]);
-        t_data_[tid].clear();
+        if (use_ext_size) {
+          std::copy_n(t_data_[tid].data(), sizes[tid+1],
+                      data_.data() + offsets[tid]);
+        } else {
+          std::copy_n(t_data_[tid].data(), t_data_[tid].size(),
+                      data_.data() + offsets[tid]);
+        }
       }
     }
   }
 
   void FinishLoad() override {
-    MoveData();
+    MoveData<false>(nullptr);
     row_ptr_.shrink_to_fit();
     data_.shrink_to_fit();
     t_data_.clear();
@@ -216,6 +229,7 @@ class MultiValSparseBin : public MultiValBin {
     const int min_block_size = 1024;
     const int n_block = std::min(num_threads, num_data_ / min_block_size);
     const data_size_t block_size = (num_data_ + n_block - 1) / n_block;
+    std::vector<size_t> sizes(t_data_.size() + 1, 0);
 #pragma omp parallel for schedule(static, 1)
     for (int tid = 0; tid < n_block; ++tid) {
       data_size_t start = tid * block_size;
@@ -239,9 +253,9 @@ class MultiValSparseBin : public MultiValBin {
         }
         row_ptr_[i + 1] = cur_cnt;
       }
-      buf.resize(bid);
+      sizes[tid] = bid;
     }
-    MoveData();
+    MoveData<true>(sizes.data());
   }
 
   inline data_size_t RowPtr(data_size_t idx) const { return row_ptr_[idx]; }
