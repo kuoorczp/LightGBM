@@ -52,6 +52,7 @@ class MultiValSparseBin : public MultiValBin {
   }
 
   void MoveData() {
+    Common::FunctionTimer fun_time("MultiValSparseBin::MoveData", global_timer);
     for (data_size_t i = 0; i < num_data_; ++i) {
       row_ptr_[i + 1] += row_ptr_[i];
     }
