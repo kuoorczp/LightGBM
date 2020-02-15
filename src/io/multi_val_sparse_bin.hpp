@@ -223,8 +223,14 @@ class MultiValSparseBin : public MultiValBin {
         int cur_cnt = 0;
         for (auto j = j_start; j < j_end; ++j) {
           auto val = other->data_[j];
-          while (val >= upper[k]) {
-            ++k;
+          int right = static_cast<int>(upper.size() - 1);
+          while (k < right) {
+            int mid = (k + right) / 2;
+            if (val < upper[mid]) {
+              right = mid;
+            } else {
+              k = mid + 1;
+            }
           }
           if (val >= lower[k]) {
             ++cur_cnt;
